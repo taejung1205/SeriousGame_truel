@@ -9,7 +9,9 @@ public class GameController : MonoBehaviour {
 	public GameObject ModeSelectPanel; // 모드 선택 화면
 	public GameObject RulePanel; // 기본 규칙 설명 화면
 	public GameObject BasicRulePanel; // 기본 모드 상황 설명
+	public GameObject ChallengeAccuracyPanel; //도전 모드에서 명중률 조정 화면
 	public GameObject TruelUI; // 게임 도중의 UI
+
 	public Text AimingTarget; //현재 조준 중인 대상의 이름
 	public Text ShootText; //"을/를 사격" 텍스트
 	public Text TargetStat; //현재 조준 중인 대상의 명중률
@@ -18,6 +20,8 @@ public class GameController : MonoBehaviour {
 	public Text WinLose; // 게임 종료 후 승리 및 패배 여부
 	public Text BestStrategy; //게임 종료 후 최적의 수
 	public Text BestPossibility; //게임 종료 후 최적의 수 확률
+
+	public Text ChallengeAccuracyText;
 
 	public AudioSource Gunshot; //총소리
 
@@ -36,6 +40,7 @@ public class GameController : MonoBehaviour {
 	public GameObject White;
 	public GameObject Black;
 
+	WinRateCalculator rateCalculator;
 
     void Start ()
 	{
@@ -46,10 +51,12 @@ public class GameController : MonoBehaviour {
 		StartPanel.SetActive (true);
 		RulePanel.SetActive(false);
 		BasicRulePanel.SetActive(false);
+		ChallengeAccuracyPanel.SetActive(false);
 		TruelUI.SetActive(false);
 		TurnText.text = "";
 		TargetStat.text = "";
 		PlayerAccuracyText.text = "";
+		rateCalculator = GetComponent<WinRateCalculator>();
 	}
 
     void Update()
@@ -117,11 +124,13 @@ public class GameController : MonoBehaviour {
                 {
 					AimingTarget.text = "하양";
 					AimingTarget.color = Color.white;
+					TargetStat.text = "";
 				}
 				else
                 {
 					AimingTarget.text = "검정";
 					AimingTarget.color = Color.black;
+					TargetStat.text = "";
 				}
 
             }
@@ -161,12 +170,40 @@ public class GameController : MonoBehaviour {
 			case ("basic start"):
 				BasicRulePanel.SetActive(false);
 				TruelUI.SetActive(true);
+				accuracy[0] = 30;
+				accuracy[1] = 70;
+				accuracy[2] = 100;
 				StartTruel();
 				break;
 			case ("challenge"):
-				isBasicMode = false;
-				Debug.Log("challenge");
 				ModeSelectPanel.SetActive(false);
+				ChallengeAccuracyText.text = accuracy[0] + "%";
+				ChallengeAccuracyPanel.SetActive(true);
+				break;
+			case ("increase"):
+				if(accuracy[0] < 100)
+                {
+					accuracy[0] += 5;
+                }
+				ChallengeAccuracyText.text = accuracy[0] + "%";
+				break;
+			case ("decrease"):
+				if (accuracy[0] > 5)
+				{
+					accuracy[0] -= 5;
+				}
+				ChallengeAccuracyText.text = accuracy[0] + "%";
+				break;
+			case ("challenge start"):
+				ChallengeAccuracyPanel.SetActive(false);
+				TruelUI.SetActive(true);
+				do
+				{
+					accuracy[1] = Random.Range(1, 21) * 5;
+					accuracy[2] = Random.Range(1, 21) * 5;
+				}
+				while (accuracy[1] == accuracy[0] || accuracy[2] == accuracy[1] || accuracy[0] == accuracy[2]);
+				StartTruel();
 				break;
 			case ("back to title"):
 				EndPanel.SetActive(false);
@@ -181,6 +218,7 @@ public class GameController : MonoBehaviour {
         {
 			isAlive[i] = true;
         }
+		Cursor.visible = false;
 		start = true;
 		White.SetActive(true);
 		Black.SetActive(true);
@@ -263,9 +301,27 @@ public class GameController : MonoBehaviour {
         {
 			switch (turnIndex)
 			{
-				case 0: //허공쏘기
-					AirShootAnimation();
-					Shoot(-1);
+				case 0: 
+					double whenShootNone = rateCalculator.WhenAShootNone(accuracy[shootingOrder[0]], accuracy[shootingOrder[1]], accuracy[shootingOrder[2]]);
+					double whenShootC = rateCalculator.WhenAShootC(accuracy[shootingOrder[0]], accuracy[shootingOrder[1]], accuracy[shootingOrder[2]]);
+					// Debug.Log("None: " + whenShootNone + " C: " + whenShootC);
+					if(whenShootNone > whenShootC) //허공쏘기
+					{
+						AirShootAnimation();
+						Shoot(-1);
+					} else //3순위 쏘기
+                    {
+						if (shootingOrder[2] == 0)
+						{
+							PlayerShootAnimation();
+							Shoot(0); //플레이어가 3순위이므로 플레이어 사격
+						}
+						else
+						{
+							ComputerShootAnimation();
+							Shoot(3 - CurrentShooter()); //다른 컴퓨터가 3순위이므로 다른 컴퓨터 사격
+						}
+					}
 					break;
 				case 1: //3순위 쏘기
 					if(shootingOrder[2] == 0)
@@ -358,6 +414,49 @@ public class GameController : MonoBehaviour {
         }
 	}
 
+	void ShowResult()
+    {
+		if(shootingOrder[0] == 0)
+        {
+			double whenShootNone = rateCalculator.WhenAShootNone(accuracy[shootingOrder[0]], accuracy[shootingOrder[1]], accuracy[shootingOrder[2]]);
+			double whenShootC = rateCalculator.WhenAShootC(accuracy[shootingOrder[0]], accuracy[shootingOrder[1]], accuracy[shootingOrder[2]]);
+			if(whenShootNone < whenShootC)
+            {
+				if(accuracy[1] > accuracy[2])
+                {
+					BestStrategy.text = "최적의 수: 하양 제거 후 검정 제거";
+				} else
+                {
+					BestStrategy.text = "최적의 수: 검정 제거 후 하양 제거";
+                }
+
+				BestPossibility.text = "최적의 수로 이길 확률: " + (whenShootC * 100).ToString("F") + "%";
+			} else
+            {
+				BestStrategy.text = "최적의 수: 누군가 죽을 때까지 허공을 쏜 후 나머지 제거";
+				BestPossibility.text = "최적의 수로 이길 확률: " + (whenShootNone * 100).ToString("F") + "%";
+			}
+        } else
+        {
+			if (accuracy[1] > accuracy[2])
+			{
+				BestStrategy.text = "최적의 수: 하양 제거 후 검정 제거";
+			}
+			else
+			{
+				BestStrategy.text = "최적의 수: 검정 제거 후 하양 제거";
+			}
+			if (shootingOrder[1] == 0)
+			{
+				BestPossibility.text = "최적의 수로 이길 확률: " + (rateCalculator.BRate(accuracy[shootingOrder[0]], accuracy[shootingOrder[1]], accuracy[shootingOrder[2]]) * 100).ToString("F") + "%";
+			}
+			else {
+				BestPossibility.text = "최적의 수로 이길 확률: " + (rateCalculator.CRate(accuracy[shootingOrder[0]], accuracy[shootingOrder[1]], accuracy[shootingOrder[2]]) * 100).ToString("F") + "%";
+			}
+			
+		}
+    }
+
 	int CurrentShooter()
     {
 		return shootingOrder[turnIndex];
@@ -370,7 +469,9 @@ public class GameController : MonoBehaviour {
 		WinLose.text = "승리하였습니다.";
 		WinLose.color = Color.white;
 		EndPanel.SetActive(true);
+		ShowResult();
 		start = false;
+		Cursor.visible = true;
 	}
 
 	IEnumerator GameOver()
@@ -380,8 +481,9 @@ public class GameController : MonoBehaviour {
 		WinLose.text = "패배하였습니다.";
 		WinLose.color = Color.grey;
 		EndPanel.SetActive(true);
+		ShowResult();
 		start = false;
-
+		Cursor.visible = true;
 	}
 
 	IEnumerator ComputerTurn()
