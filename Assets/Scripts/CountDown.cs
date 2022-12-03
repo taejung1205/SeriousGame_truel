@@ -41,7 +41,7 @@ public class CountDown : MonoBehaviour
 			if (timeLeft <= 1)
 			{
 				countDown.text = "";
-				controller.GetComponent<GameController>().end = true;
+				controller.GetComponent<GameController>().start = true;
 			}
 		}
 	}
