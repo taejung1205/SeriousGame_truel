@@ -11,6 +11,8 @@ public class GameController : MonoBehaviour {
 	public GameObject BasicRulePanel; // 기본 모드 상황 설명
 	public GameObject ChallengeAccuracyPanel; //도전 모드에서 명중률 조정 화면
 	public GameObject TruelUI; // 게임 도중의 UI
+	public GameObject BasicEndPanel;
+	public GameObject BasicExplanationPanel;
 
 	public Text AimingTarget; //현재 조준 중인 대상의 이름
 	public Text ShootText; //"을/를 사격" 텍스트
@@ -18,8 +20,13 @@ public class GameController : MonoBehaviour {
 	public Text TurnText; //턴이 바뀌었을 때 누구의 턴인지 1초간 표시용
 	public Text PlayerAccuracyText; //플레이어의 명중률
 	public Text WinLose; // 게임 종료 후 승리 및 패배 여부
+	public Text BasicWinLose;
 	public Text BestStrategy; //게임 종료 후 최적의 수
 	public Text BestPossibility; //게임 종료 후 최적의 수 확률
+
+	public Text FirstStrategy;
+	public Text IsItBest;
+	public Text Congrat;
 
 	public Text ChallengeAccuracyText;
 
@@ -27,6 +34,7 @@ public class GameController : MonoBehaviour {
 
 	public bool start = false;
 	public bool isBasicMode = true;
+	private int basicModeShotWho = 0; //0: 아직 아무도 안 쏨, 1: 하양 처음 쏨, 2: 검정 처음 쏨, -1: 허공 처음 쏨 
 
 	public AudioSource au;
 	public GameObject Player;
@@ -36,6 +44,8 @@ public class GameController : MonoBehaviour {
 	public int[] accuracy = { 30, 70, 100 };
 	public int[] shootingOrder = { 0, 1, 2 };
 	public bool[] isAlive = { true, true, true };
+
+	public GameObject Pistol;
 
 	public GameObject White;
 	public GameObject Black;
@@ -47,7 +57,9 @@ public class GameController : MonoBehaviour {
 		//player.GetComponent<CharacterController>().enabled = false;
 		start = false;
 		ModeSelectPanel.SetActive(false);
-		EndPanel.SetActive (false);	
+		EndPanel.SetActive (false);
+		BasicEndPanel.SetActive(false);
+		BasicExplanationPanel.SetActive(false);
 		StartPanel.SetActive (true);
 		RulePanel.SetActive(false);
 		BasicRulePanel.SetActive(false);
@@ -57,6 +69,7 @@ public class GameController : MonoBehaviour {
 		TargetStat.text = "";
 		PlayerAccuracyText.text = "";
 		rateCalculator = GetComponent<WinRateCalculator>();
+		Pistol.SetActive(false);
 	}
 
     void Update()
@@ -65,6 +78,7 @@ public class GameController : MonoBehaviour {
         {
 			if(CurrentShooter() == 0)
             {
+				Pistol.SetActive(true);
 				Transform playerTransform = Player.transform;
 				float lookingDirection = playerTransform.localRotation.eulerAngles.y;
 				if (lookingDirection > 200 && lookingDirection < 260 && isAlive[1])
@@ -72,11 +86,15 @@ public class GameController : MonoBehaviour {
 					AimingTarget.text = "하양";
 					AimingTarget.color = Color.white;
 					ShootText.text = "을 사격";
-					TargetStat.text = "대상의 명중률: " + accuracy[1] + "%";
+					TargetStat.text = "하양의 명중률: " + accuracy[1] + "%";
 					if (Input.GetMouseButton(0))
 					{
 						Debug.Log("Shot B");
 						Shoot(1);
+                        if (isBasicMode && basicModeShotWho == 0)
+                        {
+							basicModeShotWho = 1;
+                        }
                         if (start)
                         {
 							ChangeTurn();
@@ -89,12 +107,16 @@ public class GameController : MonoBehaviour {
 					AimingTarget.text = "검정";
 					AimingTarget.color = Color.black;
 					ShootText.text = "을 사격";
-					TargetStat.text = "대상의 명중률: " + accuracy[2] + "%";
+					TargetStat.text = "검정의 명중률: " + accuracy[2] + "%";
 					if (Input.GetMouseButton(0))
 					{
 						Debug.Log("Shot C");
 						Shoot(2);
-                        if (start)
+						if (isBasicMode && basicModeShotWho == 0)
+						{
+							basicModeShotWho = 2;
+						}
+						if (start)
                         {
 							ChangeTurn();
 						}
@@ -105,12 +127,16 @@ public class GameController : MonoBehaviour {
 					AimingTarget.text = "허공";
 					AimingTarget.color = Color.blue;
 					ShootText.text = "을 사격";
-					TargetStat.text = "";
+					TargetStat.text = "아무도 맞지 않습니다.";
 					if (Input.GetMouseButton(0))
 					{
 						Debug.Log("Shot Air");
 						Shoot(-1);
-                        if (start)
+						if (isBasicMode && basicModeShotWho == 0)
+						{
+							basicModeShotWho = -1;
+						}
+						if (start)
                         {
 							ChangeTurn();
 						}
@@ -119,18 +145,19 @@ public class GameController : MonoBehaviour {
 			}
 			else
             {
+				Pistol.SetActive(false);
 				ShootText.text = "의 차례";
 				if(CurrentShooter() == 1)
                 {
 					AimingTarget.text = "하양";
 					AimingTarget.color = Color.white;
-					TargetStat.text = "";
+					TargetStat.text = "명중률: " + accuracy[1] + "%";
 				}
 				else
                 {
 					AimingTarget.text = "검정";
 					AimingTarget.color = Color.black;
-					TargetStat.text = "";
+					TargetStat.text = "명중률: " + accuracy[2] + "%";
 				}
 
             }
@@ -156,7 +183,7 @@ public class GameController : MonoBehaviour {
 			case ("start"):
 				StartPanel.SetActive(false);
 				ModeSelectPanel.SetActive(true);
-				au.Play();
+				
 				break;
 			case ("basic"):
 				isBasicMode = true;
@@ -168,6 +195,8 @@ public class GameController : MonoBehaviour {
 				BasicRulePanel.SetActive(true);
 				break;
 			case ("basic start"):
+				au.Play();
+				basicModeShotWho = 0;
 				BasicRulePanel.SetActive(false);
 				TruelUI.SetActive(true);
 				accuracy[0] = 30;
@@ -176,6 +205,7 @@ public class GameController : MonoBehaviour {
 				StartTruel();
 				break;
 			case ("challenge"):
+				isBasicMode = false;
 				ModeSelectPanel.SetActive(false);
 				ChallengeAccuracyText.text = accuracy[0] + "%";
 				ChallengeAccuracyPanel.SetActive(true);
@@ -195,6 +225,7 @@ public class GameController : MonoBehaviour {
 				ChallengeAccuracyText.text = accuracy[0] + "%";
 				break;
 			case ("challenge start"):
+				au.Play();
 				ChallengeAccuracyPanel.SetActive(false);
 				TruelUI.SetActive(true);
 				do
@@ -206,8 +237,21 @@ public class GameController : MonoBehaviour {
 				StartTruel();
 				break;
 			case ("back to title"):
+				Pistol.SetActive(false);
 				EndPanel.SetActive(false);
-				StartPanel.SetActive(true);
+				BasicExplanationPanel.SetActive(false);
+				ModeSelectPanel.SetActive(true);
+				break;
+			case ("basic result next"):
+				BasicEndPanel.SetActive(false);
+				BasicExplanationPanel.SetActive(true);
+                if (basicModeShotWho == -1)
+                {
+					Congrat.text = "축하합니다, 당신은 이 게임 이론에 대한 이해를 갖추고 있군요!";
+                } else
+                {
+					Congrat.text = "";
+				}
 				break;
 		}
 	}
@@ -465,25 +509,73 @@ public class GameController : MonoBehaviour {
 	IEnumerator Victory()
 	{
 		yield return new WaitForSeconds(0.5f);
-		//Application.LoadLevel(Application.loadedLevel);
-		WinLose.text = "승리하였습니다.";
-		WinLose.color = Color.white;
-		EndPanel.SetActive(true);
-		ShowResult();
 		start = false;
 		Cursor.visible = true;
+        //Application.LoadLevel(Application.loadedLevel);
+        if (!isBasicMode)
+        {
+			WinLose.text = "승리하였습니다.";
+			WinLose.color = Color.white;
+			EndPanel.SetActive(true);
+			ShowResult();
+		} else
+        {
+			BasicWinLose.text = "승리하였습니다.";
+			BasicWinLose.color = Color.white;
+			switch (basicModeShotWho)
+            {
+				case -1:
+					FirstStrategy.text = "당신의 첫 수: 허공을 사격";
+					break;
+				case 1:
+					FirstStrategy.text = "당신의 첫 수: 하양을 사격";
+					break;
+				case 2:
+					FirstStrategy.text = "당신의 첫 수: 검정을 사격";
+					break;
+			}
+			IsItBest.text = "...승리하긴 했지만, 당신은 최선의 행동을 선택했나요?";
+			BasicEndPanel.SetActive(true);
+
+        }
+		
+		
 	}
 
 	IEnumerator GameOver()
 	{
 		yield return new WaitForSeconds(0.5f);
-		//Application.LoadLevel(Application.loadedLevel);
-		WinLose.text = "패배하였습니다.";
-		WinLose.color = Color.grey;
-		EndPanel.SetActive(true);
-		ShowResult();
 		start = false;
 		Cursor.visible = true;
+		//Application.LoadLevel(Application.loadedLevel);
+		if (!isBasicMode)
+		{
+			WinLose.text = "패배하였습니다.";
+			WinLose.color = Color.grey;
+			EndPanel.SetActive(true);
+			ShowResult();
+		}
+		else
+		{
+			BasicWinLose.text = "패배하였습니다.";
+			BasicWinLose.color = Color.grey;
+			switch (basicModeShotWho)
+			{
+				case -1:
+					FirstStrategy.text = "당신의 첫 수: 허공을 사격";
+					break;
+				case 1:
+					FirstStrategy.text = "당신의 첫 수: 하양을 사격";
+					break;
+				case 2:
+					FirstStrategy.text = "당신의 첫 수: 검정을 사격";
+					break;
+			}
+			IsItBest.text = "패배했지만, 당신의 행동은 최선이었나요?";
+			BasicEndPanel.SetActive(true);
+
+		}
+
 	}
 
 	IEnumerator ComputerTurn()
